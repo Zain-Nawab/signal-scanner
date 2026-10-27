@@ -15,7 +15,7 @@ TP2_RR = 3.0               # second target
 COOLDOWN_CANDLES = 8       # don't repeat a signal on the same symbol/side
 
 # Data sources tried in order (first one that works for both timeframes wins)
-DATA_SOURCES = [s.strip() for s in os.getenv("DATA_SOURCES", "binance,bybit,okx").split(",") if s.strip()]
+DATA_SOURCES = [s.strip() for s in os.getenv("DATA_SOURCES", "binance,okx").split(",") if s.strip()]
 
 # Delivery
 MAKE_WEBHOOK_URL = os.getenv("MAKE_WEBHOOK_URL", "")

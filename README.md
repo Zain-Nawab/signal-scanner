@@ -26,7 +26,7 @@ GitHub Actions (every 15 min) --> run_scan.py --> Make.com webhook --> Telegram 
 ## Files
 
 - `engine.py`, `indicators.py`: the signal logic. `config.py`: thresholds.
-- `run_scan.py`: one scan, de-duplication, delivery. `data.py`: Binance / Bybit / OKX public data with fallback.
+- `run_scan.py`: one scan, de-duplication, delivery. `data.py`: Binance / OKX public data with fallback (Bybit blocks GitHub servers).
 - `backtest.py`: walk-forward test (`python backtest.py BTCUSDT`). Fees and slippage are not yet modelled.
 - `check_sources.py`: which exchange endpoints GitHub's servers can reach (writes to the `check` branch).
 
