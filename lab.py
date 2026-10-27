@@ -64,8 +64,8 @@ def donchian(ltf, n_in=20, n_out=10, atr_mult=2.0):
                 px = pos["stop"] if hit_stop else c[i]
                 R = s * (px - pos["entry"]) / pos["risk"]
                 trades.append({"time": str(ltf.index[pos["i"]]), "side": "long" if s == 1 else "short",
-                               "R_gross": round(float(R), 3), "risk_pct": round(100 * pos["risk"] / pos["entry"], 3),
-                               "bars": i - pos["i"]})
+                               "exit_time": str(ltf.index[i]), "R_gross": round(float(R), 3),
+                               "risk_pct": round(100 * pos["risk"] / pos["entry"], 3), "bars": i - pos["i"]})
                 pos = None
     return trades
 

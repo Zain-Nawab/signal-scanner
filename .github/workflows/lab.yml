@@ -60,6 +60,7 @@ jobs:
           ls lab_results | wc -l
           mkdir -p out
           python analyze.py lab_results --out out/analysis
+          tar czf out/raw.tar.gz lab_results
       - name: Publish to lab branch
         run: |
           cd out

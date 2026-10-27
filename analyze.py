@@ -110,10 +110,10 @@ def main():
     grid = []
     for tf in sorted(df.tf.unique()):
         d = df[df.tf == tf]
-        for score, minrisk, side, tp, vol in itertools.product((2, 3), (0, 0.5, 1, 2), ("both", "long"), ("2_3", "1.5_2.5"), (False, True)):
+        for score, minrisk, side, tp, vol in itertools.product((2, 3), (0, 0.5, 1, 2), ("both", "long", "short"), ("2_3", "1.5_2.5"), (False, True)):
             m = (d.score >= score) & (d.risk_pct >= minrisk) & d["R_" + tp].notna()
-            if side == "long":
-                m &= d.side == "long"
+            if side in ("long", "short"):
+                m &= d.side == side
             if vol:
                 m &= d.atr_ratio < 2
             sub = cooled(d[m]) if m.any() else d[m]
@@ -162,6 +162,17 @@ def main():
                         L.append(line(f"{tf} / {side} / {cn}", s).replace(" | ", f" | {per} | ", 1))
     out["donchian"] = dn_out
     L.append("")
+
+    # ---- 3b. stability by calendar year and side ----------------------------------------------------
+    L += ["## 3b. Is any result stable across years? (score>=2, TP 2R/3R, net of futures-taker costs, cooldown applied)", ""]
+    for tf in sorted(df.tf.unique()):
+        d = cooled(df[(df.tf == tf) & df["R_2_3"].notna()])
+        d = d.assign(year=d.time.dt.year, net=net(d, "2_3", COSTS["futures_taker"]))
+        L += [f"### {tf} entries", "", "| Year | Longs: trades / avg R | Shorts: trades / avg R |", "|---|---|---|"]
+        for y, g in d.groupby("year"):
+            cell = lambda x: f"{len(x)} / {x.net.mean():+.2f}" if len(x) else "-"
+            L.append(f"| {y} | {cell(g[g.side == 'long'])} | {cell(g[g.side == 'short'])} |")
+        L.append("")
 
     # ---- 4. context --------------------------------------------------------------------------------
     L += ["## 4. Market context", "", "Buy-and-hold change over each job's whole period (the market the strategies were tested in):", ""]
