@@ -17,3 +17,14 @@ for name, fn in data.SOURCES.items():
 os.makedirs(os.getenv("STATE_DIR", "out"), exist_ok=True)
 with open(os.path.join(os.getenv("STATE_DIR", "out"), "check.json"), "w") as f:
     json.dump(out, f, indent=1)
+
+# --- news feeds (reachability from the runner) ---
+import news
+ev, src, err = news.calendar_events()
+hl, herr = news.headlines(__import__("datetime").datetime.now(__import__("datetime").timezone.utc), hours=48)
+out["news"] = {"calendar_source": src, "calendar_events": len(ev), "calendar_error": err,
+               "sample_events": [(e["title"], str(e["time"])) for e in ev[:5]],
+               "headline_hits_48h": hl, "rss_errors": herr}
+print("news", json.dumps(out["news"], default=str))
+with open(os.path.join(os.getenv("STATE_DIR", "out"), "check.json"), "w") as f:
+    json.dump(out, f, indent=1, default=str)

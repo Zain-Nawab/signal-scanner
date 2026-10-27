@@ -25,12 +25,25 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Restore state from data branch
-        uses: actions/checkout@v4
-        with:
-          ref: data
-          path: data
-          persist-credentials: false
-        continue-on-error: true
+        run: |
+          # Never start from empty state when a saved state exists (that would resend old signals).
+          URL="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          set +e
+          git ls-remote --exit-code --heads "$URL" data >/dev/null 2>&1
+          RC=$?
+          set -e
+          if [ "$RC" = "2" ]; then
+            echo "no data branch yet (first run)"; mkdir -p data
+          elif [ "$RC" = "0" ]; then
+            for n in 1 2 3; do
+              rm -rf data
+              git clone -q --depth 1 --branch data "$URL" data && break
+              sleep 5
+            done
+            test -f data/status.json || { echo "state could not be restored; refusing to run"; exit 1; }
+          else
+            echo "cannot reach GitHub (rc=$RC); refusing to run"; exit 1
+          fi
 
       - uses: actions/setup-python@v5
         with:

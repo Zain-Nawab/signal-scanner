@@ -25,6 +25,7 @@ li{margin:2px 0;color:var(--mut)}ul{margin:6px 0 0;padding-left:18px}
 <div class="banner" id="demo"></div>
 <div class="card"><h2>Watchlist (needs ≥ <span id="minc">3</span> of 4 confirmations + higher-timeframe trend)</h2>
 <div class="wrap"><table id="watch"></table></div></div>
+<div class="card"><h2>Paper-trading record</h2><div id="stats" style="color:var(--mut)">-</div></div>
 <div class="card"><h2>Signals</h2><div id="sigs"><span style="color:var(--mut)">No signals yet. Weak setups are filtered out, so quiet periods are normal.</span></div></div>
 <div class="card"><h2>Chart <select id="sym" onchange="loadChart()"></select></h2><div id="chart"></div></div>
 </main>
@@ -47,11 +48,16 @@ async function refresh(){
   h+=`<tr><td><b>${s}</b></td><td>${(+w.price).toLocaleString()}</td><td>${tt}</td><td class=${side}>${side}</td>`+
      cats.map(c=>`<td><span class="dot ${x.cats[c]?"on":""}"></span></td>`).join("")+`<td>${x.score}/4</td></tr>`}
  $("watch").innerHTML=h;
+ const sm=st.summary||{},nw=st.news||{};
+ $("stats").innerHTML=`Signals ${sm.signals??0} · open ${sm.open??0} · closed ${sm.closed??0} · win rate ${sm.win_pct==null?"-":sm.win_pct+"%"} · total ${sm.total_R??0}R (before fees)`
+  +((nw.next_events||[]).length?`<br>Next high-impact event: ${nw.next_events[0].title} at ${nw.next_events[0].time.slice(0,16).replace("T"," ")} UTC`:"")
+  +(nw.blackout?`<br><b style="color:#f0c36b">News window active: new signals are paused (${nw.blackout.event})</b>`:"")
+  +((nw.headlines||[]).length?`<br><span style="color:#f0c36b">Headline risk: ${nw.headlines.join(" | ")}</span>`:"");
  const sg=await j("signals.json?t="+Date.now());
  if(sg.length)$("sigs").innerHTML=sg.map(s=>`<div class="sig ${s.side[0]}"><b class=${s.side}>${s.side.toUpperCase()}</b> ${s.symbol}
-  · Grade ${s.grade} (${s.score}/4) · <span style="color:var(--mut)">${new Date(s.created).toLocaleString()} · via ${s.delivered_via||"-"}</span>
+  · Grade ${s.grade} (${s.score}/4) · <span style="color:var(--mut)">${new Date(s.created).toLocaleString()} · ${s.suppressed?"muted ("+s.reason+")":(s.outcome?s.outcome+(s.R!=null?" "+(s.R>0?"+":"")+s.R+"R":""):"open")}</span>
   <div class=grid><div><small>Entry</small>${s.entry}</div><div><small>Stop</small>${s.stop}</div><div><small>TP1 (2R)</small>${s.tp1}</div><div><small>TP2 (3R)</small>${s.tp2}</div></div>
-  <ul><li>${s.reasons}</li></ul></div>`).join("");
+  <ul><li>${s.reasons}</li>${(s.notes||[]).map(n=>`<li>${n}</li>`).join("")}</ul></div>`).join("");
  window._sigs=sg;drawLevels();
 }
 async function loadChart(){
