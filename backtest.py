@@ -1,76 +1,158 @@
-"""Walk-forward backtest of the signal engine.
+"""Walk-forward backtest with realistic costs.
 
-Usage: python backtest.py [SYMBOL] [--days 60] [--demo]
-Each signal is entered at the signal candle close; SL/TP1 are checked candle by
-candle (if both are hit in one candle, SL is assumed first - conservative).
-Half the position exits at TP1, the stop moves to breakeven, rest exits at TP2.
+    python backtest.py BTCUSDT --days 365 --out results     (live history, needs exchange access)
+    python backtest.py BTCUSDT --demo --days 200            (synthetic data, code check only)
+
+Realism rules
+- Signal is evaluated on a CLOSED candle; the trade enters at the NEXT candle's open.
+- Stop and targets keep the levels the signal printed. R is measured from the real entry price.
+- If stop and a target are hit inside the same candle, the stop is assumed hit first.
+- Half the position exits at TP1, the stop then moves to breakeven, the rest exits at TP2.
+- Costs: taker fee + slippage on entry and exit, converted into R.
+- One pass finds all candidate signals (score >= 2); variants then filter them, so rule variants
+  are compared on the same candles.
+Variants include a REVERSED sanity check: the same signals traded in the opposite direction
+with a mirrored stop. A real edge should do clearly worse when reversed.
 """
-import sys
+import argparse
+import json
+import os
+
+import numpy as np
 import pandas as pd
+
 import config
 import data
-from engine import evaluate
+import engine
+from indicators import ema
 
-PER_HTF = {"15m": 4, "30m": 2, "1h": 1}
+FEE = 0.0010        # taker fee per side (0.10%)
+SLIP = 0.0003       # assumed slippage per side (0.03%)
+WARM, WINDOW, MAX_HOLD = 200, 400, 120
+
+VARIANTS = {
+    "default (score>=3, TP 2R/3R)":   dict(min_score=3, tp=(2.0, 3.0)),
+    "looser (score>=2)":              dict(min_score=2, tp=(2.0, 3.0)),
+    "strict (score=4 only)":          dict(min_score=4, tp=(2.0, 3.0)),
+    "score>=3, TP 1.5R/2.5R":         dict(min_score=3, tp=(1.5, 2.5)),
+    "score>=3, TP 1R/2R":             dict(min_score=3, tp=(1.0, 2.0)),
+    "REVERSED default (sanity check)": dict(min_score=3, tp=(2.0, 3.0), invert=True),
+}
 
 
-def run(ltf, htf, symbol="TEST", warmup=200):
-    trades, cool = [], -999
-    for i in range(warmup, len(ltf) - 1):
+def htf_trend_series(htf):
+    e21, e50 = ema(htf.close, 21), ema(htf.close, 50)
+    c = htf.close.values
+    t = np.zeros(len(htf), dtype=int)
+    for j in range(4, len(htf)):
+        a, b, slope = e21.iloc[j], e50.iloc[j], e50.iloc[j] - e50.iloc[j - 3]
+        if a > b and c[j] > b and slope > 0:
+            t[j] = 1
+        elif a < b and c[j] < b and slope < 0:
+            t[j] = -1
+    return t
+
+
+def collect(symbol, ltf, htf):
+    """All candidate signals with score >= 2 (HTF trend aligned), one per candle."""
+    config.MIN_CATEGORIES = 2
+    d = engine.prepare(ltf)
+    tr = htf_trend_series(htf)
+    hidx = htf.index
+    cands = []
+    for i in range(WARM, len(ltf) - 1):
         t = ltf.index[i]
-        sub = ltf.iloc[max(0, i - 400):i + 1]
-        h = htf[htf.index + pd.Timedelta(hours=1) <= t + pd.Timedelta(minutes=15)].iloc[-120:]
-        if i - cool < config.COOLDOWN_CANDLES:
+        pos = hidx.searchsorted(t - pd.Timedelta(minutes=45), side="right") - 1
+        if pos < 60 or tr[pos] == 0:
             continue
-        s = evaluate(symbol, sub, h)
-        if not s:
-            continue
-        cool = i
-        risk = abs(s.entry - s.stop)
-        long = s.side == "long"
-        stop, tp1_hit, r = s.stop, False, None
-        for j in range(i + 1, min(i + 120, len(ltf))):
-            hi, lo = ltf.high.iloc[j], ltf.low.iloc[j]
-            hit_sl = lo <= stop if long else hi >= stop
-            hit1 = hi >= s.tp1 if long else lo <= s.tp1
-            hit2 = hi >= s.tp2 if long else lo <= s.tp2
-            if hit_sl:
-                r = (0.5 * config.TP_RR) if tp1_hit else -1.0   # BE after TP1 -> only banked half
-                break
-            if not tp1_hit and hit1:
-                tp1_hit, stop = True, s.entry
-            if tp1_hit and hit2:
-                r = 0.5 * config.TP_RR + 0.5 * config.TP2_RR
-                break
-        if r is None:  # timed out: mark to market
-            px = ltf.close.iloc[min(i + 119, len(ltf) - 1)]
-            m = ((px - s.entry) if long else (s.entry - px)) / risk
-            r = 0.5 * config.TP_RR + 0.5 * m if tp1_hit else m
-        trades.append({"time": s.time, "side": s.side, "grade": s.grade, "R": round(r, 2)})
-    return pd.DataFrame(trades)
+        s = engine.evaluate(symbol, None, None, _prep=d.iloc[max(0, i - WINDOW + 1):i + 1], _trend=int(tr[pos]))
+        if s:
+            cands.append({"i": i, "time": str(t), "side": s.side, "score": s.score,
+                          "entry": s.entry, "stop": s.stop})
+    return cands
 
 
-def summary(t):
-    if t.empty:
-        return "No trades."
-    w = t[t.R > 0]
-    eq = t.R.cumsum()
-    dd = (eq.cummax() - eq).max()
-    return (f"trades={len(t)} win%={len(w) / len(t) * 100:.0f} avgR={t.R.mean():.2f} "
-            f"totalR={t.R.sum():.1f} maxDD(R)={dd:.1f}")
+def simulate(ltf, c, tp, invert=False):
+    o, h, l, cl = (ltf[k].values for k in ("open", "high", "low", "close"))
+    i = c["i"]
+    j0 = i + 1
+    side_long = (c["side"] == "long") != invert
+    e0, risk0 = c["entry"], abs(c["entry"] - c["stop"])
+    if invert:
+        stop = e0 + risk0 if c["side"] == "long" else e0 - risk0
+    else:
+        stop = c["stop"]
+    sgn = 1 if side_long else -1
+    tp1, tp2 = e0 + sgn * tp[0] * risk0, e0 + sgn * tp[1] * risk0
+    entry = o[j0]
+    risk = (entry - stop) if side_long else (stop - entry)
+    if risk <= 0 or (side_long and entry >= tp1) or (not side_long and entry <= tp1):
+        return None                                   # gapped through stop or target: no trade
+    r1, r2 = abs(tp1 - entry) / risk, abs(tp2 - entry) / risk
+    cost_r = 2 * (FEE + SLIP) * entry / risk
+    cur_stop, hit1, R = stop, False, None
+    last = min(j0 + MAX_HOLD, len(ltf)) - 1
+    for j in range(j0, last + 1):
+        sl = l[j] <= cur_stop if side_long else h[j] >= cur_stop
+        t1 = h[j] >= tp1 if side_long else l[j] <= tp1
+        t2 = h[j] >= tp2 if side_long else l[j] <= tp2
+        if sl:
+            R = 0.5 * r1 if hit1 else -1.0
+            break
+        if not hit1 and t1:
+            hit1, cur_stop = True, entry
+        if hit1 and t2:
+            R = 0.5 * r1 + 0.5 * r2
+            break
+    if R is None:                                     # time stop: mark to market
+        m = sgn * (cl[last] - entry) / risk
+        R = 0.5 * r1 + 0.5 * m if hit1 else m
+    return {"time": c["time"], "side": "long" if side_long else "short", "score": c["score"],
+            "R_gross": round(R, 3), "R_net": round(R - cost_r, 3), "cost_R": round(cost_r, 3),
+            "risk_pct": round(100 * risk / entry, 3)}
+
+
+def run_variants(ltf, cands):
+    out = {}
+    for name, v in VARIANTS.items():
+        trades, last_i = [], -10**9
+        for c in cands:
+            if c["score"] < v["min_score"] or c["i"] - last_i < config.COOLDOWN_CANDLES:
+                continue
+            t = simulate(ltf, c, v["tp"], v.get("invert", False))
+            if t:
+                trades.append(t)
+                last_i = c["i"]
+        out[name] = trades
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("symbol")
+    ap.add_argument("--days", type=int, default=365)
+    ap.add_argument("--out", default="results")
+    ap.add_argument("--demo", action="store_true")
+    a = ap.parse_args()
+    if a.demo:
+        ltf = data.synthetic(a.symbol, "15m", a.days * 96, seed=7)
+        htf = ltf.resample("1h").agg({"open": "first", "high": "max", "low": "min",
+                                      "close": "last", "volume": "sum"}).dropna()
+    else:
+        ltf = data.fetch_history(a.symbol, "15m", a.days)
+        htf = data.fetch_history(a.symbol, "1h", a.days + 10)
+    print(f"{a.symbol}: {len(ltf)} x 15m candles, {ltf.index[0]} -> {ltf.index[-1]}")
+    cands = collect(a.symbol, ltf, htf)
+    print(f"candidate signals (score>=2, trend aligned): {len(cands)}")
+    res = {"symbol": a.symbol, "demo": a.demo, "start": str(ltf.index[WARM]), "end": str(ltf.index[-1]),
+           "buy_hold_pct": round(100 * (ltf.close.iloc[-1] / ltf.close.iloc[WARM] - 1), 1),
+           "fee_per_side": FEE, "slip_per_side": SLIP, "variants": run_variants(ltf, cands)}
+    os.makedirs(a.out, exist_ok=True)
+    with open(os.path.join(a.out, f"{a.symbol}.json"), "w") as f:
+        json.dump(res, f)
+    for k, v in res["variants"].items():
+        print(f"  {k}: {len(v)} trades, avg net R {np.mean([t['R_net'] for t in v]) if v else 0:.3f}")
 
 
 if __name__ == "__main__":
-    sym = next((a for a in sys.argv[1:] if a.isalpha() or a.endswith("USDT")), "BTCUSDT")
-    if "--demo" in sys.argv:
-        config.ALLOW_DEMO_DATA = True
-    ltf, demo1 = data.get(sym, config.TIMEFRAME, 1000)
-    if demo1:  # keep demo HTF consistent with the demo LTF
-        htf = ltf.resample("1h").agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}).dropna()
-    else:
-        htf, _ = data.get(sym, config.HTF, 500)
-    print(f"{sym} {'(SYNTHETIC DATA)' if demo1 else '(live data)'} {len(ltf)} candles")
-    t = run(ltf, htf, sym)
-    print(summary(t))
-    if not t.empty:
-        print(t.groupby("grade").R.agg(["count", "mean"]))
+    main()

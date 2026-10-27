@@ -165,14 +165,17 @@ def momentum(d, side):
 
 
 # ---------------------------------------------------------------------- main
-def evaluate(symbol, ltf, htf, detail=False):
+def evaluate(symbol, ltf, htf, detail=False, _prep=None, _trend=None):
     """Evaluate the last closed candle. ltf/htf must contain closed candles only.
-    Returns a Signal or None (or a status dict when detail=True)."""
-    if len(ltf) < 120 or len(htf) < 60:
+    Returns a Signal or None (or a status dict when detail=True).
+    _prep/_trend: backtest-only shortcuts (indicators / HTF trend precomputed once);
+    the live scanner never passes them."""
+    n_ltf = len(_prep) if _prep is not None else len(ltf)
+    if n_ltf < 120 or (_trend is None and len(htf) < 60):
         return (None, {}) if detail else None
-    d = prepare(ltf)
+    d = _prep if _prep is not None else prepare(ltf)
     highs, lows = swings(d.iloc[-150:].reset_index(), n=3)
-    trend = htf_trend(htf)
+    trend = _trend if _trend is not None else htf_trend(htf)
     x, a = d.iloc[-1], d.atr.iloc[-1]
     status = {}
     best = None

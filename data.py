@@ -80,6 +80,42 @@ def fetch_pair(symbol, ltf=None, htf=None, limit=None):
 
 
 # ---- helpers used only by backtest.py ----------------------------------
+def fetch_history(symbol, interval, days):
+    """Page through Binance public klines to get `days` of closed candles."""
+    import time
+    end = int(time.time() * 1000)
+    cur = end - days * 86_400_000
+    step = MIN[interval] * 60_000
+    rows = []
+    while cur < end:
+        last = None
+        for attempt in range(4):
+            for h in BINANCE_HOSTS:
+                try:
+                    r = requests.get(f"{h}/api/v3/klines", timeout=20,
+                                     params={"symbol": symbol, "interval": interval,
+                                             "startTime": cur, "endTime": end, "limit": 1000})
+                    r.raise_for_status()
+                    k = r.json()
+                    break
+                except Exception as e:
+                    last, k = e, None
+            if k is not None:
+                break
+            time.sleep(2 * (attempt + 1))
+        if k is None:
+            raise ConnectionError(f"history fetch failed: {last}")
+        if not k:
+            break
+        rows += [[x[0], x[1], x[2], x[3], x[4], x[5]] for x in k]
+        cur = k[-1][0] + step
+        if len(k) < 1000:
+            break
+    df = _df(rows)
+    df = df[~df.index.duplicated()]
+    return df.iloc[:-1]                           # drop the still-forming candle
+
+
 def synthetic(symbol, interval, limit=500, seed=None):
     """Regime-switching random walk with volume spikes - demo/testing only."""
     rng = np.random.default_rng(seed if seed is not None else abs(hash((symbol, interval))) % 2**32)
