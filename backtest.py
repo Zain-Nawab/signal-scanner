@@ -53,22 +53,28 @@ def htf_trend_series(htf):
     return t
 
 
-def collect(symbol, ltf, htf):
-    """All candidate signals with score >= 2 (HTF trend aligned), one per candle."""
+def collect(symbol, ltf, htf, ltf_min=15, htf_min=60):
+    """All candidate signals with score >= 2 (HTF trend aligned), one per candle.
+    Also records features (which confirmations fired, volatility) for later analysis."""
     config.MIN_CATEGORIES = 2
     d = engine.prepare(ltf)
+    atr_ratio = (d.atr / d.atr.rolling(50).mean()).values
     tr = htf_trend_series(htf)
     hidx = htf.index
+    off = pd.Timedelta(minutes=htf_min - ltf_min)   # an HTF bar is usable once it has closed
     cands = []
     for i in range(WARM, len(ltf) - 1):
         t = ltf.index[i]
-        pos = hidx.searchsorted(t - pd.Timedelta(minutes=45), side="right") - 1
+        pos = hidx.searchsorted(t - off, side="right") - 1
         if pos < 60 or tr[pos] == 0:
             continue
         s = engine.evaluate(symbol, None, None, _prep=d.iloc[max(0, i - WINDOW + 1):i + 1], _trend=int(tr[pos]))
         if s:
             cands.append({"i": i, "time": str(t), "side": s.side, "score": s.score,
-                          "entry": s.entry, "stop": s.stop})
+                          "entry": s.entry, "stop": s.stop,
+                          "cats": sorted(k for k in s.reasons if k != "htf"),
+                          "atr_pct": round(float(d.atr.iloc[i] / d.close.iloc[i] * 100), 3),
+                          "atr_ratio": round(float(atr_ratio[i]), 2) if atr_ratio[i] == atr_ratio[i] else 1.0})
     return cands
 
 
