@@ -1,0 +1,176 @@
+{
+ "default (score>=3, TP 2R/3R)": {
+  "In-sample": {
+   "n": 12,
+   "win": 25,
+   "avg": -0.893,
+   "ci": 0.827,
+   "total": -10.7,
+   "pf": 0.28,
+   "dd": 9.4,
+   "avg_gross": -0.245
+  },
+  "Out-of-sample": {
+   "n": 7,
+   "win": 43,
+   "avg": -0.452,
+   "ci": 1.38,
+   "total": -3.2,
+   "pf": 0.59,
+   "dd": 7.6,
+   "avg_gross": 0.505
+  },
+  "All": {
+   "n": 19,
+   "win": 32,
+   "avg": -0.73,
+   "ci": 0.712,
+   "total": -13.9,
+   "pf": 0.39,
+   "dd": 15.2,
+   "avg_gross": 0.031
+  }
+ },
+ "looser (score>=2)": {
+  "In-sample": {
+   "n": 128,
+   "win": 29,
+   "avg": -0.726,
+   "ci": 0.266,
+   "total": -92.9,
+   "pf": 0.38,
+   "dd": 96.7,
+   "avg_gross": -0.051
+  },
+  "Out-of-sample": {
+   "n": 118,
+   "win": 31,
+   "avg": -0.806,
+   "ci": 0.313,
+   "total": -95.1,
+   "pf": 0.36,
+   "dd": 100.2,
+   "avg_gross": 0.158
+  },
+  "All": {
+   "n": 246,
+   "win": 30,
+   "avg": -0.764,
+   "ci": 0.204,
+   "total": -188.0,
+   "pf": 0.37,
+   "dd": 193.6,
+   "avg_gross": 0.049
+  }
+ },
+ "strict (score=4 only)": {
+  "In-sample": {
+   "n": 0,
+   "avg_gross": null
+  },
+  "Out-of-sample": {
+   "n": 0,
+   "avg_gross": null
+  },
+  "All": {
+   "n": 0,
+   "avg_gross": null
+  }
+ },
+ "score>=3, TP 1.5R/2.5R": {
+  "In-sample": {
+   "n": 12,
+   "win": 25,
+   "avg": -0.748,
+   "ci": 0.782,
+   "total": -9.0,
+   "pf": 0.32,
+   "dd": 7.6,
+   "avg_gross": -0.1
+  },
+  "Out-of-sample": {
+   "n": 7,
+   "win": 43,
+   "avg": -0.667,
+   "ci": 1.188,
+   "total": -4.7,
+   "pf": 0.39,
+   "dd": 7.6,
+   "avg_gross": 0.29
+  },
+  "All": {
+   "n": 19,
+   "win": 32,
+   "avg": -0.718,
+   "ci": 0.64,
+   "total": -13.6,
+   "pf": 0.35,
+   "dd": 12.9,
+   "avg_gross": 0.044
+  }
+ },
+ "score>=3, TP 1R/2R": {
+  "In-sample": {
+   "n": 12,
+   "win": 17,
+   "avg": -0.852,
+   "ci": 0.591,
+   "total": -10.2,
+   "pf": 0.18,
+   "dd": 8.9,
+   "avg_gross": -0.205
+  },
+  "Out-of-sample": {
+   "n": 7,
+   "win": 29,
+   "avg": -0.882,
+   "ci": 0.998,
+   "total": -6.2,
+   "pf": 0.2,
+   "dd": 7.6,
+   "avg_gross": 0.075
+  },
+  "All": {
+   "n": 19,
+   "win": 21,
+   "avg": -0.863,
+   "ci": 0.507,
+   "total": -16.4,
+   "pf": 0.18,
+   "dd": 15.1,
+   "avg_gross": -0.102
+  }
+ },
+ "REVERSED default (sanity check)": {
+  "In-sample": {
+   "n": 12,
+   "win": 33,
+   "avg": -0.799,
+   "ci": 0.83,
+   "total": -9.6,
+   "pf": 0.3,
+   "dd": 9.9,
+   "avg_gross": -0.152
+  },
+  "Out-of-sample": {
+   "n": 7,
+   "win": 14,
+   "avg": -1.453,
+   "ci": 1.072,
+   "total": -10.2,
+   "pf": 0.14,
+   "dd": 9.3,
+   "avg_gross": -0.501
+  },
+  "All": {
+   "n": 19,
+   "win": 26,
+   "avg": -1.04,
+   "ci": 0.655,
+   "total": -19.8,
+   "pf": 0.23,
+   "dd": 20.1,
+   "avg_gross": -0.281
+  }
+ }
+}
