@@ -1,0 +1,68 @@
+{
+ "binance": {
+  "15m": {
+   "ok": true,
+   "rows": 299,
+   "last_closed": "2026-10-27 08:15:00"
+  },
+  "1h": {
+   "ok": true,
+   "rows": 299,
+   "last_closed": "2026-10-27 07:00:00"
+  }
+ },
+ "bybit": {
+  "15m": {
+   "ok": false,
+   "error": "403 Client Error: Forbidden for url: https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=15&limit=300"
+  },
+  "1h": {
+   "ok": false,
+   "error": "403 Client Error: Forbidden for url: https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=60&limit=300"
+  }
+ },
+ "okx": {
+  "15m": {
+   "ok": true,
+   "rows": 299,
+   "last_closed": "2026-10-27 08:15:00"
+  },
+  "1h": {
+   "ok": true,
+   "rows": 299,
+   "last_closed": "2026-10-27 07:00:00"
+  }
+ },
+ "news": {
+  "calendar_source": "feed",
+  "calendar_events": 5,
+  "calendar_error": null,
+  "sample_events": [
+   [
+    "Federal Funds Rate",
+    "2026-10-28 18:00:00+00:00"
+   ],
+   [
+    "FOMC Statement",
+    "2026-10-28 18:00:00+00:00"
+   ],
+   [
+    "FOMC Press Conference",
+    "2026-10-28 18:30:00+00:00"
+   ],
+   [
+    "Advance GDP q/q",
+    "2026-10-29 12:30:00+00:00"
+   ],
+   [
+    "Core PCE Price Index m/m",
+    "2026-10-29 12:30:00+00:00"
+   ]
+  ],
+  "headline_hits_48h": [
+   "Keystone breach deepens: Hackers stole key used to verify wallets as genuine",
+   "Keystone says website breach exposed hardware wallet buyers\u2019 addresses"
+  ],
+  "rss_errors": []
+ }
+}
